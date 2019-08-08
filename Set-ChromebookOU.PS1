@@ -29,6 +29,7 @@ param (
 )
 
 # Variable
+$ENV:GAM_DEVICE_MAX_RESULTS = 100
 $gam = '.\lib\gam-64\gam.exe'
 
 # Imported Functions
@@ -40,21 +41,15 @@ function setCBData ($condition) {
  # Select GSuite OU and action based on listed device condition
  switch ($condition) {
   # Create Hash Data
-  A { @{ou = '/Chromebooks/1:1'; action = 'reenable' } 
-  } # Excellent
-  B { @{ou = '/Chromebooks/1:1'; action = 'reenable' } 
-  } # Good
-  C { @{ou = '/Chromebooks/1:1'; action = 'reenable' } 
-  } # Fair
-  D { @{ou = '/Chromebooks/1:1'; action = 'reenable' } 
-  } # Code no Longer in use
   M { @{ou = '/Chromebooks/Missing'; action = 'disable' } 
   } # Lost
+  R { @{ou = '/Chromebooks/1:1'; action = 'reenable' } 
+  } # returned (No Damage)
   S { @{ou = '/Chromebooks/Missing'; action = 'disable' } 
   } # Stolen
-  Z { @{ou = '/Chromebooks/Repairs/4Parts'; action = 'disable' } 
-  } # Beyond Repair
-  default { @{ou = '/Chromebooks/1:1'; action = 'reenable' } 
+  V { @{ou = '/Chromebooks/1:1'; action = 'reenable' }
+  } # Recovered/Reactivate
+  default { @{ou = '/Chromebooks/1:1'; action = 'reenable' }
   }
  }
 }
