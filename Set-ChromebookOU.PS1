@@ -37,14 +37,12 @@ $gam = '.\lib\gam-64\gam.exe'
 . '.\lib\Invoke-SQLCommand.ps1' # Useful function for querying SQL and returning results
 
 # Functions
-function setCBData ($condition) {
- # Select GSuite OU and action based on listed device condition
- switch ($condition) {
+function setCDData ($code) {
+ # Select GSuite OU and action based on listed device code
+ switch ($code) {
   # Create Hash Data
   M { @{ou = '/Chromebooks/Missing'; action = 'disable' } 
   } # Lost
-  R { @{ou = '/Chromebooks/1:1'; action = 'reenable' } 
-  } # returned (No Damage)
   S { @{ou = '/Chromebooks/Missing'; action = 'disable' } 
   } # Stolen
   V { @{ou = '/Chromebooks/1:1'; action = 'reenable' }
@@ -85,9 +83,9 @@ do {
    # Begin Device Check
    $id = $gamDevice.deviceId
    # Begin Set orgUnitPath and annotatedUser fields in GSuite ====================================
-   $cbData = setCBData $dev.condition # Select GSuite OU based on listed device condition
-   $targOU = $cbData.ou
-   $cbAction = $cbData.action
+   $cdData = setCDData $dev.code # Select GSuite OU based on listed device code
+   $targOU = $cdData.ou
+   $cdAction = $cdData.action
    $ouGsuite = ($gamDevice.orgUnitPath | Out-String).Trim() # Fix orgUnitPath string output from gam.exe
    if ($targOU -ne $ouGsuite) {
     # Check for non-matching orUnitPaths
@@ -104,10 +102,10 @@ do {
     # End Set orgUnitPath and annotatedUser fields in GSuite ========================================
     # Begin Set device status (action disable/reenable) =======================================
     # Check if GSuite status for device is already correct
-    if ( ($cbAction -eq 'disable') -and ($gamDevice.status -eq "DISABLED") ) { continue }
-    if ( ($cbAction -eq 'reenable') -and ($gamDevice.status -eq "ACTIVE") ) { continue }
-    Add-Log update "$barcode,$cbAction"
-    if (!$WhatIf) { (.$gam update cros $id action $cbAction *>$null) }
+    if ( ($cdAction -eq 'disable') -and ($gamDevice.status -eq "DISABLED") ) { continue }
+    if ( ($cdAction -eq 'reenable') -and ($gamDevice.status -eq "ACTIVE") ) { continue }
+    Add-Log update "$barcode,$cdAction"
+    if (!$WhatIf) { (.$gam update cros $id action $cdAction *>$null) }
     # End Set device status (action disable/reenable) =========================================
    }
    else { Write-Verbose "OrgUnitPath '$targOU' correct for $barcode" }
