@@ -95,11 +95,11 @@ do {
     Write-Verbose "OrgUnitPAth = '$ouGsuite' - Should = '$targOU'"
     if ($email -like "*@*") {
      # Check for non-empty email address
-     Add-Log update "$barcode,$email,$targOU"
+     Add-Log update "$barcode,$email,$targOU" -WhatIf:$WhatIf
      if (!$WhatIf) { (.$gam update cros $id ou $targOU user $email) *>$null }
     }
     else {
-     Add-Log update "$barcode,$targOU"
+     Add-Log update "$barcode,$targOU" -WhatIf:$WhatIf
      if (!$WhatIf) { (.$gam update cros $id ou $targOU) *>$null }
     }
     # End Set orgUnitPath and annotatedUser fields in GSuite ========================================
@@ -107,14 +107,14 @@ do {
     # Check if GSuite status for device is already correct
     if ( ($cdAction -eq 'disable') -and ($gamDevice.status -eq "DISABLED") ) { continue }
     if ( ($cdAction -eq 'reenable') -and ($gamDevice.status -eq "ACTIVE") ) { continue }
-    Add-Log update "$barcode,$cdAction"
+    Add-Log update "$barcode,$cdAction" -WhatIf:$WhatIf
     if (!$WhatIf) { (.$gam update cros $id action $cdAction *>$null) }
     # End Set device status (action disable/reenable) =========================================
    }
    else { Write-Verbose "OrgUnitPath '$targOU' correct for $barcode" }
   }
   else {
-   Add-Log warning "$barcode,GSuite asset_id/deviceId not found."
+   Add-Log warning "$barcode,GSuite asset_id/deviceId not found." -WhatIf:$WhatIf
   }  # End Device Check
  }
  if (!$WhatIf) {
