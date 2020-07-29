@@ -1,6 +1,7 @@
 #Requires -Version 5.0
 <#
 .SYNOPSIS
+Update attributes for lost and recovered Chromebook devices.
 .DESCRIPTION
 .EXAMPLE
 .INPUTS
