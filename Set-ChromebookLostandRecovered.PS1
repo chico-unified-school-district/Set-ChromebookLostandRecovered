@@ -90,6 +90,11 @@ do {
    $targOU = $cdData.ou
    $cdAction = $cdData.action
    $ouGsuite = ($gamDevice.orgUnitPath | Out-String).Trim() # Fix orgUnitPath string output from gam.exe
+   # Skip if already assigned to a teacher/staff
+   if ($ouGsuite -like "*Teacher*") {
+    Write-Verbose ('{0} already assigned to staff. Skipping.' -f $barcode)
+    continue 
+   }
    if ($targOU -ne $ouGsuite) {
     # Check for non-matching orUnitPaths
     Write-Verbose "OrgUnitPAth = '$ouGsuite' - Should = '$targOU'"

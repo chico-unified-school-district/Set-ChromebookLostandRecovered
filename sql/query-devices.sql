@@ -1,4 +1,5 @@
-SELECT STU.ID,
+SELECT 
+ [STU].[ID],
  [DRA].[SCL] AS [School],
  [STU].[SEM] AS [StuEmail],
  [DRA].[CD] AS [Code],
