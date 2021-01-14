@@ -6,7 +6,8 @@ SELECT
  CONVERT(VARCHAR(10),[DRA].[DT],101) AS [Issued],
  CONVERT(VARCHAR(10),[DRA].[RD],101) AS [Returned],
  [DRA].[DD] as [Last Ticket Date],
- [DRI].[BC] AS Barcode
+ [DRI].[BC] AS [Barcode],
+ [DRI].RIN
 FROM (SELECT [STU].* FROM STU WHERE DEL = 0)
  STU RIGHT JOIN ((SELECT [DRA].* FROM DRA WHERE DEL = 0)
  DRA LEFT JOIN (SELECT [DRI].* FROM DRI WHERE DEL = 0)
@@ -17,5 +18,7 @@ WHERE
  DRA.RID = 1
  AND
  DRI.DEL <> 1
+ AND
+ DRA.DD IS NULL
  AND
  ( [DRA].[DTS] > DATEADD(day,-3,getdate()) )

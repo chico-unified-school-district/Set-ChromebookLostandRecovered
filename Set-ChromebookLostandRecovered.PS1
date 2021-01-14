@@ -42,20 +42,18 @@ function setCDData ($code) {
  # Select GSuite OU and action based on listed device code
  switch ($code) {
   # Create Hash Data
-  M { @{ou = '/Chromebooks/Missing'; action = 'disable' } 
-  } # Lost
-  S { @{ou = '/Chromebooks/Missing'; action = 'disable' } 
-  } # Stolen
-  V { @{ou = '/Chromebooks/Cart'; action = 'reenable' }
-  } # Recovered/Reactivate
-  R { @{ou = '/Chromebooks/Cart'; action = 'reenable' }
-  } # Recovered/Reactivate
-  default { @{ou = '/Chromebooks/1:1'; action = 'reenable' }
-  }
+  M { @{ou = '/Chromebooks/Missing'; action = 'disable' } }    # Lost
+  S { @{ou = '/Chromebooks/Missing'; action = 'disable' } }    # Stolen
+  V { @{ou = '/Chromebooks/Cart'; action = 'reenable' } }      # Recovered/Reactivate
+  R { @{ou = '/Chromebooks/Cart'; action = 'reenable' } }      # Recovered/Reactivate
+  default { @{ou = '/Chromebooks/1:1'; action = 'reenable' } } # Default Reenable
  }
 }
 
 # Processing
+# Import base SQL command
+$updateDDbase = Get-Content -Path .\sql\update-dd.sql -Raw
+
 "Begin Processing. Running Until $(Get-Date $StopTime)."
 $query = Get-Content .\sql\query-devices.sql -Raw
 do {
@@ -78,9 +76,9 @@ do {
   Write-Debug "Process $barcode ?"
   # Search allCROS for matching barcode(asset_id)
   if ($allCros) { $gamDevice = $allCros.where( { $_.annotatedAssetId -eq $barcode }) }
-  else { 
+  else {
    ($gamDeviceRaw = .$gam print cros query "asset_id: $barcode" fields $crosFields) *>$null
-   $gamDevice = $gamDeviceRaw | ConvertFrom-Csv 
+   $gamDevice = $gamDeviceRaw | ConvertFrom-Csv
   }
   if ($gamDevice) {
    # Begin Device Check
@@ -90,30 +88,45 @@ do {
    $targOU = $cdData.ou
    $cdAction = $cdData.action
    $ouGsuite = ($gamDevice.orgUnitPath | Out-String).Trim() # Fix orgUnitPath string output from gam.exe
+
    # Skip if already assigned to a teacher/staff
    if ($ouGsuite -like "*Teacher*") {
     Write-Verbose ('{0} already assigned to staff. Skipping.' -f $barcode)
-    continue 
+    continue
    }
+
    if ($targOU -ne $ouGsuite) {
     # Check for non-matching orUnitPaths
     Write-Verbose "OrgUnitPAth = '$ouGsuite' - Should = '$targOU'"
+
+    # Check for non-empty email address
     if ($email -like "*@*") {
-     # Check for non-empty email address
-     Add-Log update "$barcode,$email,$targOU" -WhatIf:$WhatIf
+     Add-Log updategsuite "$barcode,$email,$targOU" -WhatIf:$WhatIf
      if (!$WhatIf) { (.$gam update cros $id ou $targOU user $email) *>$null }
     }
     else {
-     Add-Log update "$barcode,$targOU" -WhatIf:$WhatIf
+     Add-Log updategsuite "$barcode,$targOU" -WhatIf:$WhatIf
      if (!$WhatIf) { (.$gam update cros $id ou $targOU) *>$null }
     }
+
     # End Set orgUnitPath and annotatedUser fields in GSuite ========================================
+
     # Begin Set device status (action disable/reenable) =======================================
+
     # Check if GSuite status for device is already correct
     if ( ($cdAction -eq 'disable') -and ($gamDevice.status -eq "DISABLED") ) { continue }
     if ( ($cdAction -eq 'reenable') -and ($gamDevice.status -eq "ACTIVE") ) { continue }
-    Add-Log update "$barcode,$cdAction" -WhatIf:$WhatIf
+
+    # Update CrOS Device
+    Add-Log updategsuite "$barcode,$cdAction" -WhatIf:$WhatIf
     if (!$WhatIf) { (.$gam update cros $id action $cdAction *>$null) }
+
+    # Fill in 'Last Ticket Date' [DRA].[DD] field to prevent duplicate processing
+    $updateFields = $dev.id, $dev.'School', $dev.'Code', $dev.RIN
+    Add-Log updatedd ( '{0} {1} {2} {3}' -f $updateFields ) -WhatIf:$WhatIf
+    $updateDDCommand = $updateDDbase -f $updateFields
+    Invoke-SqlCommand -Server $SQLServer -Database $SQLDatabase -Cred $SQLCredential -SqlCommand $updateDDCommand -WhatIf:$WhatIf
+
     # End Set device status (action disable/reenable) =========================================
    }
    else { Write-Verbose "OrgUnitPath '$targOU' correct for $barcode" }
@@ -124,7 +137,7 @@ do {
  }
  if (!$WhatIf) {
   # $waitTime = 15*60 # Seconds
-  $waitTime = 5
+  $waitTime = 60
   Write-Verbose "Next run at $((Get-Date).AddSeconds($waitTime))."
   Start-Sleep -Seconds $waitTime
  }
