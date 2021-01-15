@@ -109,7 +109,7 @@ do {
      if (!$WhatIf) { (.$gam update cros $id ou $targOU) *>$null }
     }
 
-    # End Set orgUnitPath and annotatedUser fields in GSuite ========================================
+    # End Set orgUnitPath and annotatedUser fields in GSuite ==================================
 
     # Begin Set device status (action disable/reenable) =======================================
 
