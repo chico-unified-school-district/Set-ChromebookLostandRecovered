@@ -21,4 +21,4 @@ WHERE
  AND
  DRA.DD IS NULL
  AND
- ( [DRA].[DTS] > DATEADD(day,-3,getdate()) )
+ ( [DRA].[DTS] > DATEADD(minute,-10,getdate()) )

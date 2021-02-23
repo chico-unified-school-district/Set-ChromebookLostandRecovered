@@ -38,6 +38,7 @@ $gam = '.\lib\gam-64\gam.exe'
 . '.\lib\Invoke-SQLCommand.ps1' # Useful function for querying SQL and returning results
 
 # Functions
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 function setCDData ($code) {
  # Select GSuite OU and action based on listed device code
  switch ($code) {
@@ -49,6 +50,7 @@ function setCDData ($code) {
   default { @{ou = '/Chromebooks/1:1'; action = 'reenable' } } # Default Reenable
  }
 }
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 # Processing
 # Import base SQL command
