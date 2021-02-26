@@ -46,8 +46,6 @@ function setCDData ($code) {
   M { @{ou = '/Chromebooks/Missing'; action = 'disable' } }    # Lost
   S { @{ou = '/Chromebooks/Missing'; action = 'disable' } }    # Stolen
   V { @{ou = '/Chromebooks/Cart'; action = 'reenable' } }      # Recovered/Reactivate
-  R { @{ou = '/Chromebooks/Cart'; action = 'reenable' } }      # Recovered/Reactivate
-  default { @{ou = '/Chromebooks/1:1'; action = 'reenable' } } # Default Reenable
  }
 }
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
