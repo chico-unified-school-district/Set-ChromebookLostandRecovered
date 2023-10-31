@@ -1,11 +1,6 @@
-#Requires -Version 5.0
 <#
 .SYNOPSIS
 Update attributes for lost and recovered Chromebook devices.
-.DESCRIPTION
-.EXAMPLE
-.INPUTS
-.OUTPUTS
 .NOTES
  Starting tag is CB201800012001
  Tag number should always be 14 characters in length
@@ -22,8 +17,6 @@ param (
  [Parameter(Mandatory = $true)]
  [Alias('DBCred')]
  [System.Management.Automation.PSCredential]$SQLCredential,
- <# Specify a custom time for the process to end by.
- Defaults to 5:00pm. Loop interval is set to 15 minutes #>
  [Parameter(Mandatory = $False)]
  [string]$StopTime = "5:00pm",
  [SWITCH]$WhatIf
@@ -31,11 +24,13 @@ param (
 
 # Variable
 $ENV:GAM_DEVICE_MAX_RESULTS = 100
-$gam = '.\lib\gam-64\gam.exe'
+$gam = '.\bin\gam.exe'
 
 # Imported Functions
-. '.\lib\Add-Log.ps1'
-. '.\lib\Invoke-SQLCommand.ps1' # Useful function for querying SQL and returning results
+. .\lib\Add-Log.ps1
+. .\lib\Clear-SessionData.ps1
+. .\lib\Load-Module
+. .\lib\Show-TestRun.ps1
 
 # Functions
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -51,6 +46,15 @@ function setCDData ($code) {
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 # Processing
+Show-TestRun
+Clear-SessionData
+'SqlServer' | Load-Module
+$sqlParams = @{
+ Server                 = $SQLServer
+ Database               = $SQLDatabase
+ Credential             = $SQLCredential
+ TrustServerCertificate = $true
+}
 # Import base SQL command
 $updateDDbase = Get-Content -Path .\sql\update-dd.sql -Raw
 
@@ -60,7 +64,7 @@ do {
  # Begin Do Loop
  $allCros = $null
  # $allCros = Import-Csv .\all-cros.csv
- $results = Invoke-SQLCommand -Server $SQLServer -Database $SQLDatabase -Credential $SQLCredential -Query $query
+ $results = Invoke-SqlCmd @sqlParams -Query $query
  $crosFields = "annotatedUser,annotatedAssetId,orgUnitPath,deviceId,status"
  $deviceCountThreshold = 100 # 67 is the optimal number as determined by benchmarking.
  if ($results.count -gt $deviceCountThreshold) {
@@ -125,7 +129,7 @@ do {
     $updateFields = $dev.id, $dev.'School', $dev.'Code', $dev.RIN
     Add-Log updatedd ( '{0} {1} {2} {3}' -f $updateFields ) -WhatIf:$WhatIf
     $updateDDCommand = $updateDDbase -f $updateFields
-    Invoke-SqlCommand -Server $SQLServer -Database $SQLDatabase -Cred $SQLCredential -SqlCommand $updateDDCommand -WhatIf:$WhatIf
+    Invoke-SqlCmd @sqlParams -Query $updateDDCommand
 
     # End Set device status (action disable/reenable) =========================================
    }
@@ -143,3 +147,5 @@ do {
  }
 } until ( $WhatIf -or ((Get-Date) -ge (Get-Date $StopTime)) )
 # End Do Loop
+Show-TestRun
+Clear-SessionData
