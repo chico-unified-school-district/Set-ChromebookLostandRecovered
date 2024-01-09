@@ -24,3 +24,4 @@ $RECYCLE.BIN/
 *oauth2.txt
 /bin/roots.pem
 *roots.pem
+/params.ps1

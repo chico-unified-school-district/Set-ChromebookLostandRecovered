@@ -1,13 +1,15 @@
-SELECT 
- [STU].[ID],
- [DRA].[SCL] AS [School],
- [STU].[SEM] AS [StuEmail],
- [DRA].[CD] AS [Code],
- CONVERT(VARCHAR(10),[DRA].[DT],101) AS [Issued],
- CONVERT(VARCHAR(10),[DRA].[RD],101) AS [Returned],
+SELECT
+ [STU].[id],
+ [DRA].[SCL] AS [school],
+ [STU].[SEM] AS [gmail],
+ [DRA].[CD] AS [code],
+ CONVERT(VARCHAR(10),[DRA].[DT],101) AS [issued],
+ CONVERT(VARCHAR(10),[DRA].[RD],101) AS [returned],
  [DRA].[DD] as [Last Ticket Date],
- [DRI].[BC] AS [Barcode],
- [DRI].RIN
+ [DRI].[BC] AS [barcode],
+ [DRI].RIN,
+ [DRA].[DTS]
+
 FROM (SELECT [STU].* FROM STU WHERE DEL = 0)
  STU RIGHT JOIN ((SELECT [DRA].* FROM DRA WHERE DEL = 0)
  DRA LEFT JOIN (SELECT [DRI].* FROM DRI WHERE DEL = 0)
@@ -22,3 +24,4 @@ WHERE
  DRA.DD IS NULL
  AND
  ( [DRA].[DTS] > DATEADD(minute,-10,getdate()) )
+ -- ( [DRA].[DTS] > DATEADD(day,-5,getdate()) )

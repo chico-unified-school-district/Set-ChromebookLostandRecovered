@@ -15,39 +15,165 @@ param (
  [Alias('Database')]
  [string]$SQLDatabase,
  [Parameter(Mandatory = $true)]
- [Alias('DBCred')]
+ [Alias('DBCred', 'Cred')]
  [System.Management.Automation.PSCredential]$SQLCredential,
  [Parameter(Mandatory = $False)]
  [string]$StopTime = "5:00pm",
+ [Alias('wi')]
  [SWITCH]$WhatIf
 )
 
-# Variable
-$ENV:GAM_DEVICE_MAX_RESULTS = 100
-$gam = '.\bin\gam.exe'
+function Add-GData {
+ begin {
+  $crosFields = "annotatedUser,annotatedAssetId,orgUnitPath,deviceId,status"
+ }
+ process {
+  Write-Verbose ("& $gam print cros query `"asset_id: $($_.barcode)`" fields $crosFields")
+  ($gDev = & $gam print cros query "asset_id: $($_.barcode)" fields $crosFields) *>$null
+  $devObj = $gDev | ConvertFrom-Csv
+  $msg = $MyInvocation.MyCommand.Name, $_.gmail, $_.barcode
+  if (-not$devObj) { return (Write-Verbose ("{0},[{1}],[{2}] No dev found" -f $msg)) }
+  $_.devId = $devObj.deviceId
+  $_.status = $devObj.status
+  $_.devUser = $devObj.annotatedUser
+  $_.ou = $devObj.orgUnitPath.Trim() # Trim justin case
+  Write-Verbose ( $MyInvocation.MyCommand.Name, $_ | Out-String )
+  Write-Debug ('{0},[{1}],[{2}],Proceed?' -f $msg)
+  $_
+ }
+}
 
-# Imported Functions
-. .\lib\Add-Log.ps1
-. .\lib\Clear-SessionData.ps1
+function Complete-Processing {
+ process {
+  # Write-Verbose ( $MyInvocation.MyCommand.Name, $_ | Out-String )
+  $msg = $MyInvocation.MyCommand.Name, $_.barcode, $_.gmail
+  Write-Verbose ('{0},[{1}],[{2}]' -f $msg)
+ }
+}
+
+function Format-Obj {
+ process {
+  [PSCustomObject]@{
+   stuId   = $_.id
+   gmail   = $_.gmail
+   barcode = $_.barcode
+   code    = $_.code
+   school  = $_.school
+   rin     = $_.RIN
+   devId   = $null
+   devUser = $null
+   status  = $null
+   targOU  = $null
+   action  = $null
+   ou      = $null
+   dts     = $_.dts
+  }
+ }
+}
+
+function Get-Devices ($params) {
+ begin {
+  $query = Get-Content .\sql\query-devices.sql -Raw
+ }
+ process {
+  $data = Invoke-Sqlcmd @params -Query $query
+  if ($data.count -gt 0) {
+   Write-Verbose ('{0}, Count: {1}' -f $MyInvocation.MyCommand.Name, ($data.count))
+  }
+  $data
+ }
+}
+
+function Set-CodeData {
+ begin {
+  function Search-Code ($code) {
+   # Select GSuite OU and action based on listed device code
+   switch ($code) {
+    # Create Hash Data
+    M { @{ou = '/Chromebooks/Missing'; action = 'disable' } }    # Lost
+    S { @{ou = '/Chromebooks/Missing'; action = 'disable' } }    # Stolen
+    V { @{ou = '/Chromebooks/Cart'; action = 'reenable' } }      # Recovered/Reactivate
+    default { @{ou = '/Chromebooks/Missing'; action = 'disable' } }
+   }
+  }
+ }
+ process {
+  $codeData = Search-Code $_.code
+  $_.targOU = $codeData.ou
+  $_.action = $codeData.action
+  $_
+ }
+}
+
+function Update-OU {
+ process {
+  $msg = $MyInvocation.MyCommand.Name, $_.barcode, $_.ou, $_.targOU
+  if ($_.ou -eq $_.targOU) { return (Write-Verbose ("{0},[{1}],[{2}] = [{3}] OU is correct" -f $msg)), $_ }
+  Write-Host ('{0},[{1}],[{2}] -> [{3}] ' -f $msg) -F Blue
+  Write-Host "& $gam update cros $($_.devId) ou `"$($_.targOU)`"" -F Blue
+  if (-not$WhatIf) { (& $gam update cros $_.devId ou "$($_.targOU)") *>$null }
+  $_
+ }
+}
+
+function Update-Gmail {
+ process {
+  $msg = $MyInvocation.MyCommand.Name, $_.barcode
+  # Skip if gmail missing from SIS database
+  if ($_.gmail -notmatch '@') { return (Write-verbose ('{0},[{1}],Gmail Missing from DB' -f $msg)), $_ }
+  # Skip already if matching
+  if ($_.gmail -match $_.devUser) { return (Write-verbose ('{0},[{1}],DB matches Gsuite' -f $msg)), $_ }
+  Write-Host ("{0},[{1}],[$($_.gmail)]" -f $msg) -F Blue
+  Write-Host "& $gam update cros $($_.devId) user $($_.gmail)" -F Blue
+  if (-not$WhatIf) { (& $gam update cros $_.devId user $_.gmail) *>$null }
+  $_
+ }
+}
+
+function Set-DeviceStatus {
+ process {
+  if ( ($_.action -eq 'disable') -and ($_.status -eq "DISABLED") ) { return $_ }
+  if ( ($_.action -eq 'reenable') -and ($_.status -eq "ACTIVE") ) { return $_ }
+  $msg = $MyInvocation.MyCommand.Name, $_.barcode , "& $gam update cros $($_.devId) action $($_.action)"
+  Write-Host ('{0},[{1}],[{2}]' -f $msg) -F Blue
+  if (-not$WhatIf) { (& $gam update cros $_.devId action $_.action) *>$null }
+  $_
+ }
+}
+
+function Set-TicketDate ($params) {
+ begin {
+  $baseSql = Get-Content -Path .\sql\update-dd.sql -Raw
+ }
+ process {
+  Write-Host ('{0},[{1}]' -f $MyInvocation.MyCommand.Name, $_.barcode) -F Blue
+  if ($null -eq $_.stuId) {
+   return (Write-Error ('{0},[{1}]' -f $MyInvocation.MyCommand.Name, $_.barcode)), $_
+  }
+  # Fill in 'Last Ticket Date' [DRA].[DD] field to prevent duplicate processing
+  $updateFields = $_.stuId, $_.school, $_.code, $_.RIN
+  $sql = $baseSql -f $updateFields
+  Write-Verbose ('{0},[{1}]' -f $MyInvocation.MyCommand.Name, $sql)
+  if (-not$WhatIf) { Invoke-SqlCmd @params -Query $sql }
+  $_
+ }
+}
+
+function Skip-Staff {
+ process {
+  if ($_.ou -like "*Teacher*") { return }
+  $_
+ }
+}
+
+# ======================================== Main =======================================
 . .\lib\Load-Module
 . .\lib\Show-TestRun.ps1
 
-# Functions
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-function setCDData ($code) {
- # Select GSuite OU and action based on listed device code
- switch ($code) {
-  # Create Hash Data
-  M { @{ou = '/Chromebooks/Missing'; action = 'disable' } }    # Lost
-  S { @{ou = '/Chromebooks/Missing'; action = 'disable' } }    # Stolen
-  V { @{ou = '/Chromebooks/Cart'; action = 'reenable' } }      # Recovered/Reactivate
- }
-}
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-# Processing
 Show-TestRun
-Clear-SessionData
+
+$gam = '.\bin\gam.exe'
+
 'SqlServer' | Load-Module
 $sqlParams = @{
  Server                 = $SQLServer
@@ -55,97 +181,13 @@ $sqlParams = @{
  Credential             = $SQLCredential
  TrustServerCertificate = $true
 }
-# Import base SQL command
-$updateDDbase = Get-Content -Path .\sql\update-dd.sql -Raw
 
-"Begin Processing. Running Until $(Get-Date $StopTime)."
-$query = Get-Content .\sql\query-devices.sql -Raw
+'Runs every 60 seconds'
 do {
- # Begin Do Loop
- $allCros = $null
- # $allCros = Import-Csv .\all-cros.csv
- $results = Invoke-SqlCmd @sqlParams -Query $query
- $crosFields = "annotatedUser,annotatedAssetId,orgUnitPath,deviceId,status"
- $deviceCountThreshold = 100 # 67 is the optimal number as determined by benchmarking.
- if ($results.count -gt $deviceCountThreshold) {
-  # Compares result count to threshold value
-  Write-Verbose "Aeries results ($($results.count)) are over threshold ($deviceCountThreshold)."
-  Write-Verbose "Querying all Devices in GSuite"
-  ($allCrosRaw = .$gam print cros fields $crosFields) *>$null
-  $allCros = $allCrosRaw | ConvertFrom-Csv
- }
- foreach ($dev in $results) {
-  $barcode = $dev.barcode
-  $email = $dev.StuEmail
-  Write-Debug "Process $barcode ?"
-  # Search allCROS for matching barcode(asset_id)
-  if ($allCros) { $gamDevice = $allCros.where( { $_.annotatedAssetId -eq $barcode }) }
-  else {
-   ($gamDeviceRaw = .$gam print cros query "asset_id: $barcode" fields $crosFields) *>$null
-   $gamDevice = $gamDeviceRaw | ConvertFrom-Csv
-  }
-  if ($gamDevice) {
-   # Begin Device Check
-   $id = $gamDevice.deviceId
-   # Begin Set orgUnitPath and annotatedUser fields in GSuite ====================================
-   $cdData = setCDData $dev.code # Select GSuite OU based on listed device code
-   $targOU = $cdData.ou
-   $cdAction = $cdData.action
-   $ouGsuite = ($gamDevice.orgUnitPath | Out-String).Trim() # Fix orgUnitPath string output from gam.exe
-
-   # Skip if already assigned to a teacher/staff
-   if ($ouGsuite -like "*Teacher*") {
-    Write-Verbose ('{0} already assigned to staff. Skipping.' -f $barcode)
-    continue
-   }
-
-   if ($targOU -ne $ouGsuite) {
-    # Check for non-matching orUnitPaths
-    Write-Verbose "OrgUnitPAth = '$ouGsuite' - Should = '$targOU'"
-
-    # Check for non-empty email address
-    if ($email -like "*@*") {
-     Add-Log updategsuite "$barcode,$email,$targOU" -WhatIf:$WhatIf
-     if (!$WhatIf) { (.$gam update cros $id ou $targOU user $email) *>$null }
-    }
-    else {
-     Add-Log updategsuite "$barcode,$targOU" -WhatIf:$WhatIf
-     if (!$WhatIf) { (.$gam update cros $id ou $targOU) *>$null }
-    }
-
-    # End Set orgUnitPath and annotatedUser fields in GSuite ==================================
-
-    # Begin Set device status (action disable/reenable) =======================================
-
-    # Check if GSuite status for device is already correct
-    if ( ($cdAction -eq 'disable') -and ($gamDevice.status -eq "DISABLED") ) { continue }
-    if ( ($cdAction -eq 'reenable') -and ($gamDevice.status -eq "ACTIVE") ) { continue }
-
-    # Update CrOS Device
-    Add-Log updategsuite "$barcode,$cdAction" -WhatIf:$WhatIf
-    if (!$WhatIf) { (.$gam update cros $id action $cdAction *>$null) }
-
-    # Fill in 'Last Ticket Date' [DRA].[DD] field to prevent duplicate processing
-    $updateFields = $dev.id, $dev.'School', $dev.'Code', $dev.RIN
-    Add-Log updatedd ( '{0} {1} {2} {3}' -f $updateFields ) -WhatIf:$WhatIf
-    $updateDDCommand = $updateDDbase -f $updateFields
-    Invoke-SqlCmd @sqlParams -Query $updateDDCommand
-
-    # End Set device status (action disable/reenable) =========================================
-   }
-   else { Write-Verbose "OrgUnitPath '$targOU' correct for $barcode" }
-  }
-  else {
-   Add-Log warning "$barcode,GSuite asset_id/deviceId not found." -WhatIf:$WhatIf
-  }  # End Device Check
- }
- if (!$WhatIf) {
-  # $waitTime = 15*60 # Seconds
-  $waitTime = 60
-  Write-Verbose "Next run at $((Get-Date).AddSeconds($waitTime))."
-  Start-Sleep -Seconds $waitTime
+ Get-Devices $sqlParams | Format-Obj | Set-CodeData | Add-GData | Skip-Staff |
+ Update-OU | Update-Gmail | Set-DeviceStatus | Set-TicketDate $sqlParams | Complete-Processing
+ if (-not$WhatIf) {
+  # 'Next run at {0}' -f ((Get-Date).AddSeconds(60))
+  Start-Sleep -Seconds 60
  }
 } until ( $WhatIf -or ((Get-Date) -ge (Get-Date $StopTime)) )
-# End Do Loop
-Show-TestRun
-Clear-SessionData
