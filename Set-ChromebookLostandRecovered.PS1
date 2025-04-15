@@ -153,8 +153,11 @@ function Set-TicketDate ($params) {
   # Fill in 'Last Ticket Date' [DRA].[DD] field to prevent duplicate processing
   $updateFields = $_.stuId, $_.school, $_.code, $_.RIN
   $sql = $baseSql -f $updateFields
-  Write-Verbose ('{0},[{1}]' -f $MyInvocation.MyCommand.Name, $sql)
-  if (-not$WhatIf) { Invoke-SqlCmd @params -Query $sql }
+  Write-Host ('{0},[{1}]' -f $MyInvocation.MyCommand.Name, $sql)
+  if (-not$WhatIf) {
+   try { Invoke-SqlCmd @params -Query $sql }
+   catch { return }
+  }
   $_
  }
 }
@@ -185,7 +188,7 @@ $sqlParams = @{
 'Runs every 60 seconds'
 do {
  Get-Devices $sqlParams | Format-Obj | Set-CodeData | Add-GData | Skip-Staff |
- Update-OU | Update-Gmail | Set-DeviceStatus | Set-TicketDate $sqlParams | Complete-Processing
+  Update-OU | Update-Gmail | Set-DeviceStatus | Set-TicketDate $sqlParams | Complete-Processing
  if (-not$WhatIf) {
   # 'Next run at {0}' -f ((Get-Date).AddSeconds(60))
   Start-Sleep -Seconds 60
