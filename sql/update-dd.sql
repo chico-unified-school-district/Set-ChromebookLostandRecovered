@@ -1,7 +1,7 @@
 UPDATE DRA SET DD = CURRENT_TIMESTAMP
 FROM DRA
 WHERE
-DRA.ID      =  {0}
-AND DRA.SCL =  {1}
-AND DRA.CD  = '{2}'
-AND DRA.RIN  = {3}
+DRA.ID      =  @id
+AND DRA.SCL =  @scl
+AND DRA.CD  = @cd
+AND DRA.RIN  = @rin

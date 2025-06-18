@@ -72,16 +72,9 @@ function Format-Obj {
 }
 
 function Get-Devices ($params) {
- begin {
-  $query = Get-Content .\sql\query-devices.sql -Raw
- }
- process {
-  $data = Invoke-Sqlcmd @params -Query $query
-  if ($data.count -gt 0) {
-   Write-Verbose ('{0}, Count: {1}' -f $MyInvocation.MyCommand.Name, ($data.count))
-  }
-  $data
- }
+ $data = New-SqlOperation @params -Query (Get-Content .\sql\query-devices.sql -Raw)
+ Write-Verbose ('{0}, Count: {1}' -f $MyInvocation.MyCommand.Name, @($data.count))
+ $data
 }
 
 function Set-CodeData {
@@ -151,11 +144,10 @@ function Set-TicketDate ($params) {
    return (Write-Error ('{0},[{1}]' -f $MyInvocation.MyCommand.Name, $_.barcode)), $_
   }
   # Fill in 'Last Ticket Date' [DRA].[DD] field to prevent duplicate processing
-  $updateFields = $_.stuId, $_.school, $_.code, $_.RIN
-  $sql = $baseSql -f $updateFields
-  Write-Host ('{0},[{1}]' -f $MyInvocation.MyCommand.Name, $sql)
-  if (-not$WhatIf) {
-   try { Invoke-SqlCmd @params -Query $sql }
+  $sqlVars = "id=$($_.stuId)", "scl=$($_.school)", "cd=$($_.code)", "rin=$($_.RIN)"
+  Write-Host ('{0},[{1}]' -f $MyInvocation.MyCommand.Name, ($sqlVars -join ','))
+  if (!$WhatIf) {
+   try { New-SqlOperation @params -Query $baseSql -Parameters $sqlVars }
    catch { return }
   }
   $_
@@ -170,27 +162,32 @@ function Skip-Staff {
 }
 
 # ======================================== Main =======================================
-. .\lib\Load-Module
-. .\lib\Show-TestRun.ps1
+Import-Module -Name 'dbatools', 'CommonScriptFunctions'
+Show-BlockInfo Start
 
-Show-TestRun
-
+if ($WhatIf) { Show-TestRun }
 $gam = '.\bin\gam.exe'
 
-'SqlServer' | Load-Module
 $sqlParams = @{
- Server                 = $SQLServer
- Database               = $SQLDatabase
- Credential             = $SQLCredential
- TrustServerCertificate = $true
+ Server     = $SQLServer
+ Database   = $SQLDatabase
+ Credential = $SQLCredential
 }
 
 'Runs every 60 seconds'
 do {
- Get-Devices $sqlParams | Format-Obj | Set-CodeData | Add-GData | Skip-Staff |
-  Update-OU | Update-Gmail | Set-DeviceStatus | Set-TicketDate $sqlParams | Complete-Processing
- if (-not$WhatIf) {
-  # 'Next run at {0}' -f ((Get-Date).AddSeconds(60))
-  Start-Sleep -Seconds 60
- }
+ Get-Devices $sqlParams |
+  Format-Obj |
+   Set-CodeData |
+    Add-GData |
+     Skip-Staff |
+      Update-OU |
+       Update-Gmail |
+        Set-DeviceStatus |
+         Set-TicketDate $sqlParams |
+          Complete-Processing
+ if (!$WhatIf) { Start-Sleep -Seconds 60 }
 } until ( $WhatIf -or ((Get-Date) -ge (Get-Date $StopTime)) )
+
+if ($WhatIf) { Show-TestRun }
+Show-BlockInfo Start
