@@ -72,8 +72,9 @@ function Format-Obj {
 }
 
 function Get-Devices ($params) {
- $data = New-SqlOperation @params -Query (Get-Content .\sql\query-devices.sql -Raw)
- Write-Verbose ('{0}, Count: {1}' -f $MyInvocation.MyCommand.Name, @($data.count))
+ $query = Get-Content .\sql\query-devices.sql -Raw
+ $data = New-SqlOperation @params -Query $query  | ConvertTo-CSV | ConvertFrom-Csv
+ Write-Verbose ('{0}, Count: {1}' -f $MyInvocation.MyCommand.Name, @($data).count)
  $data
 }
 
