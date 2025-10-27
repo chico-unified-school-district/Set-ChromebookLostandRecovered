@@ -191,4 +191,4 @@ do {
 } until ( $WhatIf -or ((Get-Date) -ge (Get-Date $StopTime)) )
 
 if ($WhatIf) { Show-TestRun }
-Show-BlockInfo Start
+Show-BlockInfo End
