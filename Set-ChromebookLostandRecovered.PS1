@@ -29,7 +29,9 @@ function Add-GData {
  }
  process {
   Write-Verbose ("& $gam print cros query `"asset_id: $($_.barcode)`" fields $crosFields")
+  $ErrorActionPreference = 'Continue'
   ($gDev = & $gam print cros query "asset_id: $($_.barcode)" fields $crosFields) *>$null
+  $ErrorActionPreference = 'Stop'
   $devObj = $gDev | ConvertFrom-Csv
   $msg = $MyInvocation.MyCommand.Name, $_.gmail, $_.barcode
   if (-not$devObj) { return (Write-Verbose ('{0},[{1}],[{2}] No dev found' -f $msg)) }
@@ -105,7 +107,11 @@ function Update-OU {
   if ($_.ou -eq $_.targOU) { return (Write-Verbose ('{0},[{1}],[{2}] = [{3}] OU is correct' -f $msg)), $_ }
   Write-Host ('{0},[{1}],[{2}] -> [{3}] ' -f $msg) -F Blue
   Write-Host "& $gam update cros $($_.devId) ou `"$($_.targOU)`"" -F Blue
-  if (-not$WhatIf) { (& $gam update cros $_.devId ou "$($_.targOU)") *>$null }
+  if (-not$WhatIf) {
+   $ErrorActionPreference = 'Continue'
+   (& $gam update cros $_.devId ou "$($_.targOU)") *>$null
+   $ErrorActionPreference = 'Stop'
+  }
   $_
  }
 }
@@ -119,7 +125,11 @@ function Update-Gmail {
   if ($_.gmail -match $_.devUser) { return (Write-Verbose ('{0},[{1}],DB matches Gsuite' -f $msg)), $_ }
   Write-Host ("{0},[{1}],[$($_.gmail)]" -f $msg) -F Blue
   Write-Host "& $gam update cros $($_.devId) user $($_.gmail)" -F Blue
-  if (-not$WhatIf) { (& $gam update cros $_.devId user $_.gmail) *>$null }
+  if (-not$WhatIf) {
+   $ErrorActionPreference = 'Continue'
+   (& $gam update cros $_.devId user $_.gmail) *>$null
+   $ErrorActionPreference = 'Stop'
+  }
   $_
  }
 }
@@ -130,7 +140,11 @@ function Set-DeviceStatus {
   if ( ($_.action -eq 'reenable') -and ($_.status -eq 'ACTIVE') ) { return $_ }
   $msg = $MyInvocation.MyCommand.Name, $_.barcode , "& $gam update cros $($_.devId) action $($_.action)"
   Write-Host ('{0},[{1}],[{2}]' -f $msg) -F Blue
-  if (-not$WhatIf) { (& $gam update cros $_.devId action $_.action) *>$null }
+  if (-not$WhatIf) {
+   $ErrorActionPreference = 'Continue'
+   (& $gam update cros $_.devId action $_.action) *>$null
+   $ErrorActionPreference = 'Stop'
+  }
   $_
  }
 }
