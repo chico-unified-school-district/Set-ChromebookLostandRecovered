@@ -18,21 +18,21 @@ param (
  [Alias('DBCred', 'Cred')]
  [System.Management.Automation.PSCredential]$SQLCredential,
  [Parameter(Mandatory = $False)]
- [string]$StopTime = "5:00pm",
+ [string]$StopTime = '5:00pm',
  [Alias('wi')]
  [SWITCH]$WhatIf
 )
 
 function Add-GData {
  begin {
-  $crosFields = "annotatedUser,annotatedAssetId,orgUnitPath,deviceId,status"
+  $crosFields = 'annotatedUser,annotatedAssetId,orgUnitPath,deviceId,status'
  }
  process {
   Write-Verbose ("& $gam print cros query `"asset_id: $($_.barcode)`" fields $crosFields")
   ($gDev = & $gam print cros query "asset_id: $($_.barcode)" fields $crosFields) *>$null
   $devObj = $gDev | ConvertFrom-Csv
   $msg = $MyInvocation.MyCommand.Name, $_.gmail, $_.barcode
-  if (-not$devObj) { return (Write-Verbose ("{0},[{1}],[{2}] No dev found" -f $msg)) }
+  if (-not$devObj) { return (Write-Verbose ('{0},[{1}],[{2}] No dev found' -f $msg)) }
   $_.devId = $devObj.deviceId
   $_.status = $devObj.status
   $_.devUser = $devObj.annotatedUser
@@ -73,7 +73,7 @@ function Format-Obj {
 
 function Get-Devices ($params) {
  $query = Get-Content .\sql\query-devices.sql -Raw
- $data = New-SqlOperation @params -Query $query  | ConvertTo-CSV | ConvertFrom-Csv
+ $data = New-SqlOperation @params -Query $query | ConvertTo-Csv | ConvertFrom-Csv
  Write-Verbose ('{0}, Count: {1}' -f $MyInvocation.MyCommand.Name, @($data).count)
  $data
 }
@@ -102,7 +102,7 @@ function Set-CodeData {
 function Update-OU {
  process {
   $msg = $MyInvocation.MyCommand.Name, $_.barcode, $_.ou, $_.targOU
-  if ($_.ou -eq $_.targOU) { return (Write-Verbose ("{0},[{1}],[{2}] = [{3}] OU is correct" -f $msg)), $_ }
+  if ($_.ou -eq $_.targOU) { return (Write-Verbose ('{0},[{1}],[{2}] = [{3}] OU is correct' -f $msg)), $_ }
   Write-Host ('{0},[{1}],[{2}] -> [{3}] ' -f $msg) -F Blue
   Write-Host "& $gam update cros $($_.devId) ou `"$($_.targOU)`"" -F Blue
   if (-not$WhatIf) { (& $gam update cros $_.devId ou "$($_.targOU)") *>$null }
@@ -114,9 +114,9 @@ function Update-Gmail {
  process {
   $msg = $MyInvocation.MyCommand.Name, $_.barcode
   # Skip if gmail missing from SIS database
-  if ($_.gmail -notmatch '@') { return (Write-verbose ('{0},[{1}],Gmail Missing from DB' -f $msg)), $_ }
+  if ($_.gmail -notmatch '@') { return (Write-Verbose ('{0},[{1}],Gmail Missing from DB' -f $msg)), $_ }
   # Skip already if matching
-  if ($_.gmail -match $_.devUser) { return (Write-verbose ('{0},[{1}],DB matches Gsuite' -f $msg)), $_ }
+  if ($_.gmail -match $_.devUser) { return (Write-Verbose ('{0},[{1}],DB matches Gsuite' -f $msg)), $_ }
   Write-Host ("{0},[{1}],[$($_.gmail)]" -f $msg) -F Blue
   Write-Host "& $gam update cros $($_.devId) user $($_.gmail)" -F Blue
   if (-not$WhatIf) { (& $gam update cros $_.devId user $_.gmail) *>$null }
@@ -126,8 +126,8 @@ function Update-Gmail {
 
 function Set-DeviceStatus {
  process {
-  if ( ($_.action -eq 'disable') -and ($_.status -eq "DISABLED") ) { return $_ }
-  if ( ($_.action -eq 'reenable') -and ($_.status -eq "ACTIVE") ) { return $_ }
+  if ( ($_.action -eq 'disable') -and ($_.status -eq 'DISABLED') ) { return $_ }
+  if ( ($_.action -eq 'reenable') -and ($_.status -eq 'ACTIVE') ) { return $_ }
   $msg = $MyInvocation.MyCommand.Name, $_.barcode , "& $gam update cros $($_.devId) action $($_.action)"
   Write-Host ('{0},[{1}],[{2}]' -f $msg) -F Blue
   if (-not$WhatIf) { (& $gam update cros $_.devId action $_.action) *>$null }
@@ -157,23 +157,20 @@ function Set-TicketDate ($params) {
 
 function Skip-Staff {
  process {
-  if ($_.ou -like "*Teacher*") { return }
+  if ($_.ou -like '*Teacher*') { return }
   $_
  }
 }
 
 # ======================================== Main =======================================
-Import-Module -Name 'dbatools', 'CommonScriptFunctions'
+Import-Module -Name CommonScriptFunctions -Cmdlet Show-TestRun, Show-BlockInfo, New-SqlOperation
+Import-Module -Name dbatools -Cmdlet Invoke-DbaQuery, Set-DbatoolsConfig, Connect-DbaInstance, Disconnect-DbaInstance
 Show-BlockInfo Start
 
 if ($WhatIf) { Show-TestRun }
-$gam = '.\bin\gam.exe'
+$gam = 'C:\GAM7\gam.exe'
 
-$sqlParams = @{
- Server     = $SQLServer
- Database   = $SQLDatabase
- Credential = $SQLCredential
-}
+$sqlParams = Connect-DbaInstance -SqlInstance $SQLServer -Database $SQLDatabase -SqlCredential $SQLCredential
 
 'Runs every 60 seconds'
 do {
